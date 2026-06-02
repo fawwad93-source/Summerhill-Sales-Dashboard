@@ -1,0 +1,34 @@
+name: Daily Dashboard Update
+
+on:
+  schedule:
+    # This runs every day at 1:00 AM UTC (Adjust the cron schedule to your local timezone equivalent)
+    # Cron format: min hour dom month dow
+    - cron: '0 8 * * *'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Run update script
+        run: python update_dashboard.py
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          # Only commit if there are actual changes
+          git diff --quiet && git diff --staged --quiet || git commit -m "Automated data update from Google Sheets"
+          git push
