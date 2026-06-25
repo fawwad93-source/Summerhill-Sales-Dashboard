@@ -1,0 +1,53 @@
+name: Daily Sales Dashboard Update
+
+# ─── When to run ──────────────────────────────────────────────────────────────
+on:
+  schedule:
+    # 11:00 UTC = 4:00 AM PDT (UTC-7, summer)
+    # 12:00 UTC = 4:00 AM PST (UTC-8, winter) — add a second cron if needed
+    - cron: '0 11 * * *'
+  workflow_dispatch:          # manual trigger via: Actions → "Run workflow"
+
+# ─── Job ─────────────────────────────────────────────────────────────────────
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out the repo so the HTML file is available
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up Python 3.11
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. Install Python dependencies
+      - name: Install dependencies
+        run: pip install gspread google-auth pytz
+
+      # 4. Run the injection script
+      #    GOOGLE_CREDENTIALS must be added as a repository secret:
+      #      Settings → Secrets and variables → Actions → New repository secret
+      #      Name:  GOOGLE_CREDENTIALS
+      #      Value: (paste the full contents of your service account JSON key file)
+      - name: Inject yesterday's sales data
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python scripts/daily_inject.py
+
+      # 5. Commit and push the updated HTML — only if the file actually changed
+      - name: Commit and push updated dashboard
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --staged --quiet; then
+            echo "No changes — dashboard already up to date."
+          else
+            git commit -m "Auto-update dashboard: $(TZ='America/Los_Angeles' date +'%Y-%m-%d')"
+            git push
+            echo "Dashboard pushed successfully."
+          fi
