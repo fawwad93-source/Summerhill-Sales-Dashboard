@@ -23,7 +23,7 @@ from google.oauth2.service_account import Credentials
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIG  — edit these if your sheet name or file path changes
 # ══════════════════════════════════════════════════════════════════════════════
-SPREADSHEET_ID = '1VdmdKDECLFNTonee-AqhysHWQComjVAiXlXb9-7hMsE'
+SPREADSHEET_ID = '1VdmdKDECLFNTonee-AqhyxHWQComjVAiXlXb9-7hMsE'
 SHEET_TAB      = 'PPC SHEET'
 HTML_PATH      = 'index.html'
 TIMEZONE       = 'America/Los_Angeles'   # PDT (UTC-7) / PST (UTC-8)
