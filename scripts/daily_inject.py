@@ -7,7 +7,8 @@ injects new records into Summerhill_Sales_Dashboard.html, and writes the file in
 Run by GitHub Actions every day at 4 AM PDT.
 Safe guards:
   - Read-only Google Sheets access (Viewer service account)
-  - Skips if yesterday already exists in the dashboard
+  - Skips if the target date already exists in the dashboard
+  - Supports an optional TARGET_DATE=YYYY-MM-DD for safe one-day backfills
   - Stops parsing at the TARGET section (never reads target data)
   - Validates at least 3 products found before writing
   - Exits cleanly with code 0 if no data yet (sheet not filled)
@@ -33,6 +34,7 @@ PROD_MAP  = {
     'ZCPM':   'ZCPM',
     'ZCPM 2': 'ZCPM2',
     'ZVHR':   'ZVHR',
+    'ZVHRO':  'ZVHRO',
     'ZKS':    'ZKS',
 }
 DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
@@ -102,14 +104,20 @@ def day_name(date_str):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 1 — Determine target date (yesterday in PDT)
+# STEP 1 — Determine target date (yesterday in PDT, or an explicit backfill)
 # ══════════════════════════════════════════════════════════════════════════════
 tz            = pytz.timezone(TIMEZONE)
 now_local     = datetime.now(tz)
-yesterday     = (now_local - timedelta(days=1)).strftime('%Y-%m-%d')
+default_date  = (now_local - timedelta(days=1)).strftime('%Y-%m-%d')
+target_date   = os.environ.get('TARGET_DATE', '').strip() or default_date
+try:
+    datetime.strptime(target_date, '%Y-%m-%d')
+except ValueError:
+    print(f'ERROR: TARGET_DATE must use YYYY-MM-DD; received {target_date!r}.')
+    sys.exit(1)
 print(f'=== Summerhill Dashboard Daily Injector ===')
 print(f'Now (PDT):    {now_local.strftime("%Y-%m-%d %H:%M %Z")}')
-print(f'Target date:  {yesterday}')
+print(f'Target date:  {target_date}' + (' (manual backfill)' if target_date != default_date else ''))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 2 — Connect to Google Sheets (read-only)
@@ -128,7 +136,7 @@ print(f'Loaded {len(all_rows)} rows from "{SHEET_TAB}"')
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 3 — Parse rows, extract yesterday's records only
 # ══════════════════════════════════════════════════════════════════════════════
-print(f'\nParsing rows for {yesterday} …')
+print(f'\nParsing rows for {target_date} …')
 new_records = []
 cur_date    = None
 
@@ -149,7 +157,7 @@ for row_num, row in enumerate(all_rows, start=1):
     if col_b == 'ITEMS':
         parsed = parse_date(col_a)
         if parsed:
-            cur_date = parsed if parsed == yesterday else None
+            cur_date = parsed if parsed == target_date else None
             status   = 'TARGET DATE ✓' if cur_date else 'skip'
             print(f'  Row {row_num}: Date {parsed} → {status}')
         continue
@@ -199,11 +207,11 @@ for row_num, row in enumerate(all_rows, start=1):
 
 # ── Nothing found? Sheet not yet filled for this date ────────────────────────
 if not new_records:
-    print(f'\nNo records found for {yesterday}.')
+    print(f'\nNo records found for {target_date}.')
     print('The sheet may not be filled yet for this date — exiting cleanly.')
     sys.exit(0)
 
-print(f'\nParsed {len(new_records)} product records for {yesterday}')
+print(f'\nParsed {len(new_records)} product records for {target_date}')
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 4 — Load HTML and check for duplicates
@@ -234,8 +242,8 @@ existing_dates = {r['date'] for r in existing}
 print(f'Existing records: {len(existing)}  ({min(existing_dates)} → {max(existing_dates)})')
 
 # ── Safety check: skip if date already loaded ─────────────────────────────────
-if yesterday in existing_dates:
-    print(f'\n{yesterday} already exists in the dashboard — nothing to do. Exiting.')
+if target_date in existing_dates:
+    print(f'\n{target_date} already exists in the dashboard — nothing to do. Exiting.')
     sys.exit(0)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -245,7 +253,7 @@ total_net = round(sum(r['netProfit']  for r in new_records), 2)
 total_qty = sum(r['totalQty']  for r in new_records)
 total_sales = round(sum(r['totalSales'] for r in new_records), 2)
 
-print(f'\nValidation summary for {yesterday}:')
+print(f'\nValidation summary for {target_date}:')
 print(f'  Products parsed : {len(new_records)}')
 print(f'  Total units     : {total_qty}')
 print(f'  Total sales     : ${total_sales:.2f}')
