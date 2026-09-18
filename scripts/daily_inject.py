@@ -41,7 +41,8 @@ PROD_MAP = {
     'ZCPM':   'ZCPM',
     'ZCPM 2': 'ZCPM2',
     'ZVHR':   'ZVHR',
-    'ZVHRO':  'ZVHRO',
+    'ZVHO':   'ZVHO',
+    'ZVHRO':  'ZVHO',   # legacy sheet label; normalize to current product code
     'ZKS':    'ZKS',
 }
 
